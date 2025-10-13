@@ -184,9 +184,38 @@ class ParticleFilter(Node):
         # first make sure that the particle weights are normalized
         self.normalize_particles()
 
-        # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
-        # just to get started we will fix the robot's pose to always be at the origin
-        self.robot_pose = Pose()
+        if not self.particle_cloud:
+            self.robot_pose = Pose()
+        else:
+            # calculate the total weight of all particles
+            total_weight = sum(p.w for p in self.particle_cloud)
+
+            # compute the mean pose
+            mean_x = 0.0
+            mean_y = 0.0
+            mean_sin_theta = 0.0
+            mean_cos_theta = 0.0
+            
+            # compute the weighted average
+            for p in self.particle_cloud:
+                mean_x += p.x * p.w
+                mean_y += p.y * p.w
+                mean_sin_theta += math.sin(p.theta) * p.w
+                mean_cos_theta += math.cos(p.theta) * p.w
+
+            # normalized x, y
+            mean_x /= total_weight
+            mean_y /= total_weight
+            
+            # normalized theta
+            mean_sin_theta /= total_weight
+            mean_cos_theta /= total_weight
+            mean_theta = math.atan2(mean_sin_theta, mean_cos_theta)
+
+            #convert to geometry_msgs/Pose
+            q = quaternion_from_euler(0.0, 0.0, mean_theta)
+            self.robot_pose = Pose(position=Point(x=mean_x, y=mean_y, z=0.0),orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]))
+
         if hasattr(self, 'odom_pose'):
             self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
                                                             self.odom_pose)
@@ -246,15 +275,30 @@ class ParticleFilter(Node):
         if xy_theta is None:
             xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         self.particle_cloud = []
-        # TODO create particles
+        init_x, init_y, init_theta = xy_theta
+        for _ in range(self.n_particles):
+            # initialize particles randomly around the initial pose
+            x = np.random.normal(init_x, 0.5)
+            y = np.random.normal(init_y, 0.5)
+            theta = self.transform_helper.angle_normalize(np.random.normal(init_theta, math.pi/8))
+            # set uniform weight
+            self.particle_cloud.append(Particle(x=x, y=y, theta=theta, w=1.0/self.n_particles))
 
         self.normalize_particles()
         self.update_robot_pose()
+        self.publish_particles(timestamp)
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
-        # TODO: implement this
-        pass
+        if not self.particle_cloud:
+            return
+        
+        # add up all of the weights
+        total_weight = sum(p.w for p in self.particle_cloud)
+        
+        # normalize each particle weight
+        for p in self.particle_cloud:
+            p.w /= total_weight
 
     def publish_particles(self, timestamp):
         msg = ParticleCloud()
