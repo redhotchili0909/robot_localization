@@ -241,7 +241,21 @@ class ParticleFilter(Node):
             self.current_odom_xy_theta = new_odom_xy_theta
             return
 
-        # TODO: modify particles using delta
+        delta_x, delta_y, delta_theta = delta
+
+        for p in self.particle_cloud:
+            rotation = p.theta
+            # rotate delta into particle frame
+            move_x = math.cos(rotation)*delta_x-math.sin(rotation)*delta_y
+            move_y = math.sin(rotation)*delta_x+math.cos(rotation)*delta_y
+            # add noise to the motion
+            noise_x = np.random.normal(0.0, 0.01)
+            noise_y = np.random.normal(0.0, 0.01)
+            noise_theta = np.random.normal(0.0, math.pi/180)
+            # update the particle position
+            p.x += move_x + noise_x
+            p.y += move_y + noise_y
+            p.theta = self.transform_helper.angle_normalize(p.theta + delta_theta + noise_theta)
 
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
