@@ -16,7 +16,7 @@ import math
 import time
 import numpy as np
 from occupancy_field import OccupancyField
-from helper_functions import TFHelper
+from helper_functions import TFHelper, draw_random_sample
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
 
@@ -266,6 +266,15 @@ class ParticleFilter(Node):
         # make sure the distribution is normalized
         self.normalize_particles()
         # TODO: fill out the rest of the implementation
+        choices = self.particle_cloud
+        # get list of probabilities 
+        probabilities = []
+        for p in self.particle_cloud:
+            probabilities.append(p.w)
+        n = len(self.particle_cloud)
+        samples = self.transform_helper.draw_random_sample(choices, probabilities, n)
+
+        self.particle_cloud = samples
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
@@ -273,7 +282,8 @@ class ParticleFilter(Node):
             theta: the angle relative to the robot frame for each corresponding reading 
         """
         # TODO: implement this
-        pass
+        for p in self.particle_cloud:
+            pass
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
