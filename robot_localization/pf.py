@@ -276,6 +276,9 @@ class ParticleFilter(Node):
 
         self.particle_cloud = samples
 
+        # reset the weights of the particles
+        for p in self.particle_cloud:
+            p.w = 0.1 # near 0 to avoid errors 
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
