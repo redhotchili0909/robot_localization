@@ -265,7 +265,7 @@ class ParticleFilter(Node):
         """
         # make sure the distribution is normalized
         self.normalize_particles()
-        # TODO: fill out the rest of the implementation
+        # TODO: fill out the rest of the implementation IN PROGRESS
         choices = self.particle_cloud
         # get list of probabilities 
         probabilities = []
@@ -276,14 +276,48 @@ class ParticleFilter(Node):
 
         self.particle_cloud = samples
 
+
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
             r: the distance readings to obstacles
             theta: the angle relative to the robot frame for each corresponding reading 
         """
-        # TODO: implement this
-        for p in self.particle_cloud:
-            pass
+        # TODO: implement this IN PROGRESS
+        particle_errors = []
+
+        # get x's and y's for each point in the laser scan
+        laser_x = []
+        laser_y = []
+        for i, r_pt in enumerate(r):
+            if not math.isinf(r):
+                laser_x[i] = r_pt * math.cos(math.radians(theta[i]))
+                laser_y[i] = r_pt * math.sin(math.radians(theta[i]))
+
+        # update every particle weight
+        for index, p in enumerate(self.particle_cloud):
+            overall_distance_error = 0
+
+            # rotate and translate each scan onto particle 
+            for x,y in zip(laser_x, laser_y): 
+                new_laser_x = ((x * math.cos(p.theta)) + (x * (-math.sin(p.theta)))) + p.x
+                new_laser_y = ((y * math.sin(p.theta)) + (y * (math.cos(p.theta)))) + p.y
+
+                # get its distance "error" for each scan point
+                point_error = OccupancyField.get_closest_obstacle_distance(new_laser_x, new_laser_y)
+                overall_distance_error += point_error
+            
+            # insert into particle errors to keep track
+            particle_errors[index] = overall_distance_error
+
+        # with array of all summed distance errors, use Gaussian / normal distribution to update each weight
+        particle_errors = np.array(particle_errors)
+        sigma = 0.2 # arbitrary, can change
+        weights = np.exp(-(particle_errors ** 2) / (2 * sigma **2)) # get weights
+        weights /= np.sum(weights) # normalize weights to sum to 1
+        
+        # update each particle with new weight
+        for i, p in enumerate(self.particle_cloud):
+            p.w = weights[i]
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
