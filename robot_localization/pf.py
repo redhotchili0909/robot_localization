@@ -292,7 +292,7 @@ class ParticleFilter(Node):
         laser_x = []
         laser_y = []
         for i, r_pt in enumerate(r):
-            if not math.isinf(r):
+            if not math.isinf(r_pt): # filter out false scans
                 laser_x[i] = r_pt * math.cos(math.radians(theta[i]))
                 laser_y[i] = r_pt * math.sin(math.radians(theta[i]))
 
