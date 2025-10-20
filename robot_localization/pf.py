@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
 
+# Build using colcon in ros2_ws:
+# colcon build --symlink-install
+
+# Then use these commands in seperate terminals:
+
+# Launch rviz2 with the turtlebot bag file configuration:
+# rviz2 -d ~/ros2_ws/src/comp-robo/robot_localization/rviz/turtlebot_bag_files.rviz
+
+# Use from the maps folder:
+# ros2 launch robot_localization test_pf.py map_yaml:=mac_1st_floor_final.yaml
+
+# Use from the bags folder:
+# ros2 bag play macfirst_floor_take_1_0.db3 --clock
+
 """ This is the starter code for the robot localization project """
 
 from threading import Thread
