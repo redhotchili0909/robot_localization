@@ -2,13 +2,12 @@
 
 """ This is the starter code for the robot localization project """
 
-import rclpy
 from threading import Thread
+import rclpy
 from rclpy.time import Time
 from rclpy.node import Node
-from std_msgs.msg import Header
 from sensor_msgs.msg import LaserScan
-from nav2_msgs.msg import ParticleCloud, Particle
+from nav2_msgs.msg import ParticleCloud
 from nav2_msgs.msg import Particle as Nav2Particle
 from geometry_msgs.msg import PoseWithCovarianceStamped, Pose, Point, Quaternion
 from rclpy.duration import Duration
@@ -78,7 +77,7 @@ class ParticleFilter(Node):
 
         self.n_particles = 300          # the number of particles to use
 
-        self.d_thresh = 0.2             # the amount of linear movement before performing an update
+        self.d_thresh = 0.1             # the amount of linear movement before performing an update
         self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
 
         # TODO: define additional constants if needed
@@ -183,38 +182,22 @@ class ParticleFilter(Node):
         """
         # first make sure that the particle weights are normalized
         self.normalize_particles()
-
+        
         if not self.particle_cloud:
+            # fallback to default pose if no particles exist
             self.robot_pose = Pose()
         else:
-            # calculate the total weight of all particles
-            total_weight = sum(p.w for p in self.particle_cloud)
-
-            # compute the mean pose
-            mean_x = 0.0
-            mean_y = 0.0
-            mean_sin_theta = 0.0
-            mean_cos_theta = 0.0
+            # find particle with highest weight
+            best_particle = max(self.particle_cloud, key=lambda p: p.w)
             
-            # compute the weighted average
-            for p in self.particle_cloud:
-                mean_x += p.x * p.w
-                mean_y += p.y * p.w
-                mean_sin_theta += math.sin(p.theta) * p.w
-                mean_cos_theta += math.cos(p.theta) * p.w
-
-            # normalized x, y
-            mean_x /= total_weight
-            mean_y /= total_weight
+            print(f"Best particle weight: {best_particle.w:.6f} at position ({best_particle.x:.3f}, {best_particle.y:.3f}, {best_particle.theta:.3f})")
             
-            # normalized theta
-            mean_sin_theta /= total_weight
-            mean_cos_theta /= total_weight
-            mean_theta = math.atan2(mean_sin_theta, mean_cos_theta)
-
-            #convert to geometry_msgs/Pose
-            q = quaternion_from_euler(0.0, 0.0, mean_theta)
-            self.robot_pose = Pose(position=Point(x=mean_x, y=mean_y, z=0.0),orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]))
+            # create pose from the most likely particle
+            q = quaternion_from_euler(0.0, 0.0, best_particle.theta)
+            self.robot_pose = Pose(
+                position=Point(x=best_particle.x, y=best_particle.y, z=0.0),
+                orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+            )
 
         if hasattr(self, 'odom_pose'):
             self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
@@ -233,22 +216,27 @@ class ParticleFilter(Node):
         if self.current_odom_xy_theta:
             old_odom_xy_theta = self.current_odom_xy_theta
             delta = (new_odom_xy_theta[0] - self.current_odom_xy_theta[0],
-                     new_odom_xy_theta[1] - self.current_odom_xy_theta[1],
-                     new_odom_xy_theta[2] - self.current_odom_xy_theta[2])
+                    new_odom_xy_theta[1] - self.current_odom_xy_theta[1],
+                    new_odom_xy_theta[2] - self.current_odom_xy_theta[2])
 
             self.current_odom_xy_theta = new_odom_xy_theta
         else:
             self.current_odom_xy_theta = new_odom_xy_theta
             return
 
-        delta_x, delta_y, delta_theta = delta
+        delta_x_world, delta_y_world, delta_theta = delta
+        old_th = old_odom_xy_theta[2]  # yaw at previous update
+
+        # world -> old body frame
+        delta_x_body =  math.cos(old_th) * delta_x_world + math.sin(old_th) * delta_y_world
+        delta_y_body = -math.sin(old_th) * delta_x_world + math.cos(old_th) * delta_y_world
+
 
         for p in self.particle_cloud:
-            rotation = p.theta
-            # rotate delta into particle frame
-            move_x = math.cos(rotation)*delta_x-math.sin(rotation)*delta_y
-            move_y = math.sin(rotation)*delta_x+math.cos(rotation)*delta_y
-            # add noise to the motion
+            # rotate delta into the map frame
+            move_x = math.cos(p.theta) * delta_x_body - math.sin(p.theta) * delta_y_body
+            move_y = math.sin(p.theta) * delta_x_body + math.cos(p.theta) * delta_y_body
+            # define noise
             noise_x = np.random.normal(0.0, 0.01)
             noise_y = np.random.normal(0.0, 0.01)
             noise_theta = np.random.normal(0.0, math.pi/180)
@@ -256,6 +244,8 @@ class ParticleFilter(Node):
             p.x += move_x + noise_x
             p.y += move_y + noise_y
             p.theta = self.transform_helper.angle_normalize(p.theta + delta_theta + noise_theta)
+
+
 
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
@@ -272,7 +262,10 @@ class ParticleFilter(Node):
         for p in self.particle_cloud:
             probabilities.append(p.w)
         n = len(self.particle_cloud)
-        samples = self.transform_helper.draw_random_sample(choices, probabilities, n)
+        samples = draw_random_sample(choices, probabilities, n)
+
+        count = len(samples)
+        print(f"Resampled particles:{count}")
 
         self.particle_cloud = samples
 
@@ -283,44 +276,60 @@ class ParticleFilter(Node):
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
             r: the distance readings to obstacles
-            theta: the angle relative to the robot frame for each corresponding reading 
+            theta: the angle (in radians) relative to the robot frame for each reading 
         """
-        # TODO: implement this IN PROGRESS
         particle_errors = []
 
         # get x's and y's for each point in the laser scan
         laser_x = []
         laser_y = []
         for i, r_pt in enumerate(r):
-            if not math.isinf(r_pt): # filter out false scans
-                laser_x[i] = r_pt * math.cos(math.radians(theta[i]))
-                laser_y[i] = r_pt * math.sin(math.radians(theta[i]))
+            if not (math.isinf(r_pt) or math.isnan(r_pt)): #filter out false scans
+                laser_x.append(r_pt * math.cos(theta[i]))
+                laser_y.append(r_pt * math.sin(theta[i]))
+
+        if not laser_x:
+            return
 
         # update every particle weight
-        for index, p in enumerate(self.particle_cloud):
-            overall_distance_error = 0
+        for p in self.particle_cloud:
+            overall_distance_error = 0.0
+            count = 0
 
-            # rotate and translate each scan onto particle 
-            for x,y in zip(laser_x, laser_y): 
-                new_laser_x = ((x * math.cos(p.theta)) + (x * (-math.sin(p.theta)))) + p.x
-                new_laser_y = ((y * math.sin(p.theta)) + (y * (math.cos(p.theta)))) + p.y
+            # rotate and translate each scan point into the map frame via particle pose
+            for x, y in zip(laser_x, laser_y):
+                map_x = math.cos(p.theta) * x - math.sin(p.theta) * y + p.x
+                map_y = math.sin(p.theta) * x + math.cos(p.theta) * y + p.y
 
                 # get its distance "error" for each scan point
-                point_error = OccupancyField.get_closest_obstacle_distance(new_laser_x, new_laser_y)
-                overall_distance_error += point_error
-            
+                point_error = self.occupancy_field.get_closest_obstacle_distance(map_x, map_y)
+                if not (math.isinf(point_error) or math.isnan(point_error)):
+                    overall_distance_error += point_error
+                    count += 1
+
+            # use mean distance error
+            mean_err = overall_distance_error / count
             # insert into particle errors to keep track
-            particle_errors[index] = overall_distance_error
+            particle_errors.append(mean_err)
 
         # with array of all summed distance errors, use Gaussian / normal distribution to update each weight
         particle_errors = np.array(particle_errors)
-        sigma = 0.2 # arbitrary, can change
-        weights = np.exp(-(particle_errors ** 2) / (2 * sigma **2)) # get weights
-        weights /= np.sum(weights) # normalize weights to sum to 1
-        
-        # update each particle with new weight
-        for i, p in enumerate(self.particle_cloud):
-            p.w = weights[i]
+        sigma = 0.20  # arbitrary, can change
+        weights = np.exp(-(particle_errors ** 2) / (2.0 * sigma ** 2)) # get weights
+        total_weights = float(np.sum(weights))
+
+        if total_weights > 0.0:
+            # normalize weights to sum to 1
+            weights /= total_weights
+            for i, p in enumerate(self.particle_cloud):
+                p.w = float(weights[i])
+        else:
+            # make weights uniform if everything is below threshold
+            uniform = 1.0 / len(self.particle_cloud)
+            for p in self.particle_cloud:
+                p.w = uniform
+
+
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
