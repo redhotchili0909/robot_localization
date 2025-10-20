@@ -61,8 +61,6 @@ class Particle(object):
         return Pose(position=Point(x=self.x, y=self.y, z=0.0),
                     orientation=Quaternion(x=q[0], y=q[1], z=q[2], w=q[3]))
 
-    # TODO: define additional helper functions if needed
-
 class ParticleFilter(Node):
     """ The class that represents a Particle Filter ROS Node
         Attributes list:
@@ -95,8 +93,6 @@ class ParticleFilter(Node):
 
         self.d_thresh = 0.1             # the amount of linear movement before performing an update
         self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
-
-        # TODO: define additional constants if needed
 
         # pose_listener responds to selection of a new approximate robot location (for instance using rviz)
         self.create_subscription(PoseWithCovarianceStamped, 'initialpose', self.update_initial_pose, 10)
@@ -254,9 +250,9 @@ class ParticleFilter(Node):
             move_x = math.cos(p.theta) * delta_x_body - math.sin(p.theta) * delta_y_body
             move_y = math.sin(p.theta) * delta_x_body + math.cos(p.theta) * delta_y_body
             # define noise
-            noise_x = np.random.normal(0.0, 0.01)
-            noise_y = np.random.normal(0.0, 0.01)
-            noise_theta = np.random.normal(0.0, math.pi/180)
+            noise_x = np.random.normal(0.0, 0.1)
+            noise_y = np.random.normal(0.0, 0.1)
+            noise_theta = np.random.normal(0.0, math.pi/90)
             # update the particle position with noise
             p.x += move_x + noise_x
             p.y += move_y + noise_y
@@ -272,7 +268,6 @@ class ParticleFilter(Node):
         """
         # make sure the distribution is normalized
         self.normalize_particles()
-        # TODO: fill out the rest of the implementation IN PROGRESS
         choices = self.particle_cloud
         # get list of probabilities 
         probabilities = []
