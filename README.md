@@ -62,7 +62,10 @@ The noise values we use are small (0.1 meters for position, π/90 radians for ro
 
 The overall goal of this step is to update our weights of our particles, essentially based on how correct the Lidar scan data is when transposed onto each particle compared with our known map. We first convert all the laser scan data points into Cartesian x and y points, filtering out false scans of infinity or 0 as we go. With this filtered laser scan data, we iterate through every particle, and rotate then translate each scan point into the map frame via the particles' pose. 
 
-[insert matrix equations for rotating]
+We rotate by multiplying the inverse rotation matrix against the laser coordinate vector.
+$$\begin{bmatrix} x_{map} \\ y_{map} \end{bmatrix} = \begin{bmatrix} \cos(\theta_{particle}) & \sin(\theta_{particle}) \\ -\sin(\theta_{particle}) & \cos(\theta_{particle}) \end{bmatrix} \begin{bmatrix} x_{laser} \\ y_{laser} \end{bmatrix}$$
+
+To translate, we just add the particle's x and y onto the rotated coordinates.
 
 For each scan point that we transpose, we get its distance "error", adding it on to an overall distance error that we keep track of for each particle. After obtaining the overall distance error, we divide it by the amount of scans we transposed in order to get the mean distance error. 
 
@@ -81,6 +84,8 @@ As the last step of the iteration, we resample the particles based on their calc
 We only run steps 2-5 when the Neato has moved enough to make it worthwhile (0.1 meters or π/6 radians). This keeps the algorithm efficient while ensuring we track the Neato's motion accurately. The whole process repeats continuously, and over time the particle cloud converges on the robot's true location as we gather more sensor data.
 
 ## Challenges Faced
+
+
 
 ## Possible Future Improvements
 
