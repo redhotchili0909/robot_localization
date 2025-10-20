@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# Instructions for running the particle filter :p
+
 # Build using colcon in ros2_ws:
 # colcon build --symlink-install
 
@@ -238,6 +240,7 @@ class ParticleFilter(Node):
             self.current_odom_xy_theta = new_odom_xy_theta
             return
 
+        # extract delta components
         delta_x_world, delta_y_world, delta_theta = delta
         old_th = old_odom_xy_theta[2]  # yaw at previous update
 
@@ -254,7 +257,7 @@ class ParticleFilter(Node):
             noise_x = np.random.normal(0.0, 0.01)
             noise_y = np.random.normal(0.0, 0.01)
             noise_theta = np.random.normal(0.0, math.pi/180)
-            # update the particle position
+            # update the particle position with noise
             p.x += move_x + noise_x
             p.y += move_y + noise_y
             p.theta = self.transform_helper.angle_normalize(p.theta + delta_theta + noise_theta)
@@ -322,7 +325,10 @@ class ParticleFilter(Node):
                     count += 1
 
             # use mean distance error
-            mean_err = overall_distance_error / count
+            if count == 0:
+                mean_err = math.inf
+            else:
+                mean_err = overall_distance_error / count
             # insert into particle errors to keep track
             particle_errors.append(mean_err)
 
