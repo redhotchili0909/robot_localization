@@ -60,7 +60,13 @@ The noise values we use are small (0.1 meters for position, π/90 radians for ro
 
 ### 3. Sensor Update (`update_particles_with_laser`)
 
+The overall goal of this step is to update our weights of our particles, essentially based on how correct the Lidar scan data is when transposed onto each particle compared with our known map. We first convert all the laser scan data points into Cartesian x and y points, filtering out false scans of infinity or 0 as we go. With this filtered laser scan data, we iterate through every particle, and rotate then translate each scan point into the map frame via the particles' pose. 
 
+[insert matrix equations for rotating]
+
+For each scan point that we transpose, we get its distance "error", adding it on to an overall distance error that we keep track of for each particle. After obtaining the overall distance error, we divide it by the amount of scans we transposed in order to get the mean distance error. 
+
+We take the mean distance errors for each particle, and use Gaussian normal distribution to update each particle weights, normalizing the weights after. However, if the total weights of the particles is below a set threshold, we chose to make the weights uniform since it's not significant enough.
 
 ### 4. Pose Estimation (`update_robot_pose`)
 
@@ -68,6 +74,7 @@ At this point we have a bunch of weighted particles, but we need to give the res
 
 ### 5. Resampling (`resample_particles`)
 
+As the last step of the iteration, we resample the particles based on their calculated weights, in order to have an updated particle cloud for the next iteration. We make sure the distribution is normalized before resampling all of them. At the end, we reset the weights of those particles to be 0.1 to have a fresh start for the next iteration, and avoid math errors from having them reset to 0.
 
 ---
 
