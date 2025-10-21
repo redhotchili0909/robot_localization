@@ -60,16 +60,26 @@ The noise values we use are small (0.1 meters for position, π/90 radians for ro
 
 ### 3. Sensor Update (`update_particles_with_laser`)
 
-The overall goal of this step is to update our weights of our particles, essentially based on how correct the Lidar scan data is when transposed onto each particle compared with our known map. We first convert all the laser scan data points into Cartesian x and y points, filtering out false scans of infinity or 0 as we go. With this filtered laser scan data, we iterate through every particle, and rotate then translate each scan point into the map frame via the particles' pose. 
+The overall goal of this step is to update our weights of our particles based essentially on how correct the Lidar scan data is when transposed onto each particle, and compared with our known map. We first convert all the laser scan data points into Cartesian x and y points, filtering out false scans of infinity or 0 as we go. With this filtered laser scan data, we go through every particle, and rotate then translate each scan point into the map frame via the particles' pose. 
 
-We rotate by multiplying the inverse rotation matrix against the laser coordinate vector.
-$$\begin{bmatrix} x_{map} \\ y_{map} \end{bmatrix} = \begin{bmatrix} \cos(\theta_{particle}) & \sin(\theta_{particle}) \\ -\sin(\theta_{particle}) & \cos(\theta_{particle}) \end{bmatrix} \begin{bmatrix} x_{laser} \\ y_{laser} \end{bmatrix}$$
+Specifically, we rotate our laser scan coordinates by multiplying the inverse rotation matrix, which uses the angle heading of the particle, against the laser scan x and y coordinates; we then translate our scan coordinates by adding our particle coordinate vector.
 
-To translate, we just add the particle's x and y onto the rotated coordinates.
+$$\begin{bmatrix} x_{map} \\ y_{map} \end{bmatrix} = \begin{bmatrix} \cos(\theta_{particle}) & \sin(\theta_{particle}) \\ -\sin(\theta_{particle}) & \cos(\theta_{particle}) \end{bmatrix} \begin{bmatrix} x_{laser} \\ y_{laser} \end{bmatrix} + \begin{bmatrix} x_{particle} \\ y_{particle} \end{bmatrix}$$
 
-For each scan point that we transpose, we get its distance "error", adding it on to an overall distance error that we keep track of for each particle. After obtaining the overall distance error, we divide it by the amount of scans we transposed in order to get the mean distance error. 
+Now, each of our laser scan data points has been transposed to be placed as if the particle was the actual robot, and we do this for every particle in our particle cloud.
 
-We take the mean distance errors for each particle, and use Gaussian normal distribution to update each particle weights, normalizing the weights after. However, if the total weights of the particles is below a set threshold, we chose to make the weights uniform since it's not significant enough.
+With each of these laser scan data points, we then get its distance "error", which is calculated by the distance from the scan data point to the nearest obstacle according to our known map. Each of these distance errors are added to an overall distance error that we keep track of for each particle. After obtaining the overall distance error for a particle, we divide it by the amount of scans we transposed in order to get the mean distance error for that particle. 
+
+After iterating through all the particles, we take the mean distance error for each particle, and use Gaussian normal distribution to calculate each particle weight according to where its error fell on the distribution; lower errors lead to higher weights and vice versa, where larger errors have a smooth increasing penalty.
+
+Each particle weight is calculated with this equation (weights are normalized later), where sigma is our measurement noise variance, which has been arbitrarily set at 0.2 through testing:
+$$
+w_i = \exp\!\left(-\frac{(\text{error}_i)^2}{2\sigma^2}\right)
+$$
+
+We chose to stick with Gaussian normal distribution as it is simple and efficient; we also later circumvented its issue of susceptibility to outliers later on in the pose estimation step by picking the particle with the highest weight. 
+
+If the total weights of the particles is below a set threshold of 0.0, we chose to make the weights uniform since this indicates there is no variance of error among the particles and therefore we can treat each particle the same for the next pass; if the total weights are above 0.0, we proceed with normalizing and assigning the weights to our particles.
 
 ### 4. Pose Estimation (`update_robot_pose`)
 
@@ -86,9 +96,8 @@ We only run steps 2-5 when the Neato has moved enough to make it worthwhile (0.1
 ## Challenges Faced
 
 
-
 ## Possible Future Improvements
 
-Given more time, it could have been interesting to explore other weight distributions more in depth.
+Given more time, it could have been interesting to explore other weight distributions more in depth. Gaussian distribution worked very well for us, but tinkering around with other distributions such as Laplace distribution or a mixture of Gaussian and a uniform distribution.
 
 ## Lessons Learned
