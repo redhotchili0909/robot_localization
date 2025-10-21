@@ -11,7 +11,6 @@ The goal of this project is to implement a particle filter to localize a Neato o
 
 ![Beginning Process](/assets/demo.gif)
 
-We made the decision to stick with a normal Gaussian distribution to determine the weights of our particles.
 
 ## Methodology
 
@@ -93,11 +92,32 @@ As the last step of the iteration, we resample the particles based on their calc
 
 We only run steps 2-5 when the Neato has moved enough to make it worthwhile (0.1 meters or π/6 radians). This keeps the algorithm efficient while ensuring we track the Neato's motion accurately. The whole process repeats continuously, and over time the particle cloud converges on the robot's true location as we gather more sensor data.
 
+## Results on Simulation
+
+After successfully testing our particle filter implementation on the bag recording of the 1st floor of the MAC, we moved on to validate our algorithm in simulation. We used our previous teleoperation behavior code from the RoboBehaviors project to drive the Neato around in the Gazebo simulation of the Gauntlet environment.
+
+As shown below, the particles converged correctly to the Neato's actual location with consistent accuracy. Even when starting with a dispersed particle cloud, the algorithm quickly honed in on the robot's true position as it moved through the environment.
+
+![Gauntlet Teleoperation Test](/assets/gauntlet_teleop_pf.gif)
+
+[Full Demo Video](https://drive.google.com/file/d/1bzSEoyizTYYjyOdvdCE2Ck4GvPnMfiXK/view?usp=sharing)
+
 ## Challenges Faced
 
+The primary challenge we encountered was understanding the existing skeleton code structure. While the important algorithmic functions were left for us to implement, it took time to realize that there were plenty of helper functions already written that could significantly reduce our workload. We initially overlooked these utilities and started implementing functionality from scratch.
+
+Additionally, we initially had a critical bug where our odometry updates weren't translating correctly to each of the particles. The mistake was applying the world-frame motion directly to each particle - we forgot that in our setup, each particle has its own random orientation, so we needed to apply an additional transform to accommodate that. This caused all particles to drift sideways together, which was confusing to debug. After fixing this transformation bug, the rest of the implementation became much more straightforward.
 
 ## Possible Future Improvements
 
-Given more time, it could have been interesting to explore other weight distributions more in depth. Gaussian distribution worked very well for us, but tinkering around with other distributions such as Laplace distribution or a mixture of Gaussian and a uniform distribution.
+Given more time, it could have been interesting to explore other weight distributions more in depth. Gaussian distribution worked very well for us, but tinkering around with other distributions such as Laplace distribution or a mixture of Gaussian and uniform distribution could potentially yield better results.
+
+We could also experiment with adaptive methods for assigning weights, such as dynamically adjusting the measurement noise variance (sigma) based on the quality of laser scan data or implementing outlier rejection techniques to handle insufficient laser readings.
 
 ## Lessons Learned
+
+### Ashley
+
+### Jun
+
+When debugging, it's important to think more broadly and try to understand the root cause rather than falling into a rabbit hole. For example, initially, for the aforementioned bug with the incorrect odometry transform update, we initially thought the issue was with our noise assignment because all the particles seemed to drift to the side together. We spent a considerable amount of time trying to understand why noise would cause that behavior. However, the answer was rather simple: our initial transform was incorrect. This experience taught us to step back and examine our initial assumptions when debugging, rather than diving deep into one suspected cause.
