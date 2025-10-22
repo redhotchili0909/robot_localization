@@ -71,9 +71,10 @@ With each of these laser scan data points, we then get its distance "error", whi
 After iterating through all the particles, we take the mean distance error for each particle, and use Gaussian normal distribution to calculate each particle weight according to where its error fell on the distribution; lower errors lead to higher weights and vice versa, where larger errors have a smooth increasing penalty.
 
 Each particle weight is calculated with this equation (weights are normalized later), where sigma is our measurement noise variance, which has been arbitrarily set at 0.2 through testing:
-$$
-w_i = \exp\!\left(-\frac{(\text{error}_i)^2}{2\sigma^2}\right)
-$$
+
+$$\begin{align}
+w_i &= e^{-\frac{(\text{error}_i)^2}{2\sigma^2}}
+\end{align}$$
 
 We chose to stick with Gaussian normal distribution as it is simple and efficient; we also later circumvented its issue of susceptibility to outliers later on in the pose estimation step by picking the particle with the highest weight. 
 
