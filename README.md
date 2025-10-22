@@ -86,7 +86,7 @@ At this point we have a bunch of weighted particles, but we need to give the res
 
 ### 5. Resampling (`resample_particles`)
 
-As the last step of the iteration, we resample the particles based on their calculated weights, in order to have an updated particle cloud for the next iteration. We make sure the distribution is normalized before resampling all of them. At the end, we reset the weights of those particles to be 0.1 to have a fresh start for the next iteration, and avoid math errors from having them reset to 0.
+As the last step of the iteration, we resample the particles based on their calculated weights, in order to have an updated particle cloud for the next iteration. We make sure the distribution is normalized before resampling all of them. Initially, we planned to start with resampling all of them, and introducing random sampling as needed; in the end, it turned out that our particle filter still consistently works with complete weighted resampling. At the end, we reset the weights of each particle to be 0.1 to have a fresh start for the next iteration, and avoid math errors from having them reset to 0.
 
 ---
 
@@ -117,6 +117,8 @@ We could also experiment with adaptive methods for assigning weights, such as dy
 ## Lessons Learned
 
 ### Ashley
+
+When starting to implement a function, like updating particles with the laser scan data, it's helpful to not only understand the overall conceptual process but also have the middle-level details sketched out in pseudocode. Since the code encapsulates the fine grain details, what happened initially was that even though we had the big conceptual process understood early on (transpose the laser scan data onto the particles as if they're the Neato and calculate error), there were little things that would've made the functionality off if just from the first pass of coding. For example, making sure to rotate the laser scan data before translating, or filtering out the infinity value scan points, were things that weren't initially considered in the high level process, and had to be added in during multiple revisions. So, fleshing out the bridge between our conceptual model and the code first would've likely made our implementation process a bit more efficient.
 
 ### Jun
 
